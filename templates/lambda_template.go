@@ -37,7 +37,7 @@ REGION_AMIS = {
 
 NAME = '<% .Name %>'
 SRC_PATH = 's3://<% .Name %>-script/build.sh'
-FLEET_ROLE = 'arn:aws:iam::{0}:role/<% .Name %>-spot-fleet-role'
+FLEET_ROLE = 'arn:aws:iam::{0}:role/aws-service-role/spotfleet.amazonaws.com/AWSServiceRoleForEC2SpotFleet'
 IAM_PROFILE = 'arn:aws:iam::{0}:instance-profile/<% .Name %>-ec2'
 SNS_ARN = 'arn:aws:sns:<% .Region %>:{}:<% .Name %>'
 INSTANCE_TYPE = '<% .InstanceType %>'
@@ -62,6 +62,12 @@ def lambda_handler(event, context):
     force_build = False
     if "ForceBuild" in event:
         force_build = event['ForceBuild']
+    aosp_build = ""
+    if "AOSPBuild" in event:
+        aosp_build = event['AOSPBuild']
+    aosp_branch = ""
+    if "AOSPBranch" in event:
+        aosp_branch = event['AOSPBranch']
 
     try: 
         cheapest_price = 0
@@ -127,8 +133,8 @@ packages:
 
 runcmd:
 - [ bash, -c, "sudo -u ubuntu aws s3 --region <% .Region %> cp {0} /home/ubuntu/build.sh" ]
-- [ bash, -c, "sudo -u ubuntu bash /home/ubuntu/build.sh {1} {2}" ]
-    """.format(SRC_PATH, DEVICE, str(force_build).lower()).encode('ascii')).decode('ascii')
+- [ bash, -c, "sudo -u ubuntu bash /home/ubuntu/build.sh {1} {2} {3} {4}" ]
+    """.format(SRC_PATH, DEVICE, str(force_build).lower(), aosp_build, aosp_branch).encode('ascii')).decode('ascii')
 
     # make spot fleet request config
     now_utc = datetime.utcnow().replace(microsecond=0)
@@ -176,6 +182,8 @@ runcmd:
             return message
         else:
             print("Not including SSH key in spot request as couldn't find a key in region {} with name {}: {}".format(cheapest_region, SSH_KEY_NAME, e))
+
+    print("spot_fleet_request_config: ", spot_fleet_request_config)
 
     try:
         print("Requesting spot instance in AZ {} with current price of {}".format(cheapest_az, cheapest_price))
